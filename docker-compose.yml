@@ -1,0 +1,45 @@
+version: '3'
+
+networks:
+  default:
+    name: share
+
+services:
+
+  traefik:
+    image: "traefik:v2.10"
+    container_name: "traefik"
+    command:
+      - "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--config=/traefik.yaml"
+    ports:
+      - "8081:80"
+      - "8080:8080"
+    volumes:
+      - ./plugins-local:/plugins-local
+      - ./conf:/conf
+      - ./traefik.yaml:/traefik.yaml
+
+  postgres:
+    image: timescale/timescaledb:2.11.1-pg14
+    container_name: postgres
+    hostname: postgres
+    restart: always
+    env_file: env
+    ports:
+      - 5432:5432
+    volumes:
+      - ./db:/var/lib/postgresql/data
+
+
+  postgrest:
+    image: postgrest/postgrest:v10.2.0
+    container_name: postgrest
+    hostname: postgrest
+    restart: always
+    env_file: env
+    depends_on:
+      - postgres
+    ports:
+      - 5433:80

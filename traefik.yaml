@@ -1,0 +1,23 @@
+# Static configuration
+# Local mode
+entryPoints:
+  web:
+    address: :80
+
+
+api:
+  insecure: true
+  dashboard: true
+
+
+log:
+  level: DEBUG
+
+experimental:
+  localPlugins:
+    auditlog:
+      moduleName: auditlog
+
+providers:
+  file:
+    directory: "/conf"

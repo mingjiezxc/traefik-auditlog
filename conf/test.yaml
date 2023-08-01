@@ -1,0 +1,38 @@
+http:
+  routers:
+    my-router:
+      rule: host(`192.168.188.99`)
+      service: service-foo
+      entryPoints:
+        - web
+      middlewares:
+        - my-plugin
+
+  services:
+   service-foo:
+      loadBalancer:
+        servers:
+          - url: http://192.168.188.99:8501/
+
+  middlewares:
+    my-plugin:
+      plugin:
+        auditlog:
+          # 用于校验 jwt 认证
+          jwtSecret: h4BZAwLabAzMBi49LGHU5wqLJp/P4tl+t10VqKMk1Cg=
+
+          # 审计日志
+          ## 开关
+          NotSaveDB: false
+
+          ## postgrest config
+          PgResetUrl: http://192.168.188.99:5433/audit_log
+          PgResetJwtHeader: '{"alg": "HS256","typ": "JWT"}'
+          PgResetJwtPayload:  '{"role":"postgres"}'
+          PgResetJwtSecret: a32a7be2f3081d57f7f1377d23967250bf635e9a94203e247bfda31221590fe0
+          PgTimeOut: 2
+
+          ## 忽略 指定 模式
+          ignoreMethod: []
+          ## 为空则所有，不为空则指定模式才写进数据库
+          specifyMethod: []

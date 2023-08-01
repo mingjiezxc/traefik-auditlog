@@ -1,0 +1,28 @@
+displayName: AuditLog
+type: middleware
+import: auditlog
+summary: 'request & Response Body save to db'
+
+testData:
+  # jwt 校验
+  JwtSecret: "h4BZAwLabAzMBi49LGHU5wqLJp/P4tl+t10VqKMk1Cg="
+  JwtAuthHeader: Authorization
+	JwtHeaderPrefix: Bearer
+
+  # 插件记录 日志开关
+  NotSaveDB: true
+  PgResetUrl: http://192.168.188.99:5433/audit_log
+  PgResetJwtSecret: a32a7be2f3081d57f7f1377d23967250bf635e9a94203e247bfda31221590fe0
+  PgResetJwtHeader: '{"alg":"HS256","typ":"JWT"}'
+  PgResetJwtPayload: '{"role":"postgres"}'
+
+  PgTimeOut: 2
+
+  # 忽略 指定 模式
+  ignoreMethod:
+    - GET
+
+  # 为空则所有，不为空则指定模式才写进数据库
+  specifyMethod: []
+
+
