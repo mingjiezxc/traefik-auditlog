@@ -14,11 +14,12 @@ import (
 )
 
 type Config struct {
-	NotSaveDB       bool   `json:"notSaveDB,omitempty"`
+	JwtCheck        bool   `json:"JwtCheck,omitempty"`
 	JwtSecret       string `json:"jwtSecret,omitempty"`
 	JwtAuthHeader   string `json:"jwtAuthHeader,omitempty"`
 	JwtHeaderPrefix string `json:"jwtHeaderPrefix,omitempty"`
 
+	NotSaveDB         bool          `json:"notSaveDB,omitempty"`
 	IgnoreMethod      []string      `json:"ignoreMethod,omitempty"`
 	SpecifyMethod     []string      `json:"specifyMethod,omitempty"`
 	PgResetUrl        string        `json:"pgResetUrl,omitempty"`
@@ -34,14 +35,14 @@ func CreateConfig() *Config {
 
 type AuthLog struct {
 	next            http.Handler
-	NotSaveDB       bool
+	JwtCheck        bool
 	JwtSecret       string
 	JwtAuthHeader   string
 	JwtHeaderPrefix string
 
-	IgnoreMethod  []string
-	SpecifyMethod []string
-
+	NotSaveDB         bool
+	IgnoreMethod      []string
+	SpecifyMethod     []string
 	PgResetUrl        string
 	PgResetJwtSecret  string
 	PgResetJwtHeader  string
@@ -65,13 +66,13 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 	}
 
 	return &AuthLog{
-		next:      next,
-		NotSaveDB: config.NotSaveDB,
-
+		next:            next,
+		JwtCheck:        config.JwtCheck,
 		JwtSecret:       config.JwtSecret,
 		JwtAuthHeader:   config.JwtAuthHeader,
 		JwtHeaderPrefix: config.JwtHeaderPrefix,
 
+		NotSaveDB:         config.NotSaveDB,
 		PgResetUrl:        config.PgResetUrl,
 		PgResetJwtSecret:  config.PgResetJwtSecret,
 		PgResetTimeOut:    config.PgResetTimeOut,
@@ -83,87 +84,88 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 }
 
 func (a *AuthLog) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var account string
 
-	headerToken := req.Header.Get(a.JwtAuthHeader)
+	if a.JwtCheck {
+		headerToken := req.Header.Get(a.JwtAuthHeader)
 
-	verified, pay, err := verifyJwtHeader(headerToken, a.JwtHeaderPrefix, a.JwtSecret)
+		verified, pay, err := verifyJwtHeader(headerToken, a.JwtHeaderPrefix, a.JwtSecret)
+		account = pay.Account
 
-	if err != nil {
-		http.Error(res, ErrReutnString(fmt.Sprintf("verify Token err: %s", err)), http.StatusUnauthorized)
+		if err != nil {
+			http.Error(res, ErrReutnString(fmt.Sprintf("verify Token err: %s", err)), http.StatusUnauthorized)
+			return
+		}
+
+		if !verified {
+			http.Error(res, ErrReutnString("Not allowed"), http.StatusUnauthorized)
+		}
+	}
+
+	wrappedWriter := &responseWriter{
+		lastModified:   true,
+		ResponseWriter: res,
+	}
+
+	a.next.ServeHTTP(wrappedWriter, req)
+
+	// 审计日志
+	// 如不保存
+	if a.NotSaveDB {
 		return
 	}
 
-	if verified {
-
-		wrappedWriter := &responseWriter{
-			lastModified:   true,
-			ResponseWriter: res,
-		}
-
-		a.next.ServeHTTP(wrappedWriter, req)
-
-		// 审计日志
-
-		// 如不保存
-		if a.NotSaveDB {
+	// 检查 req Method 是否存在于忽略列表
+	for _, v := range a.IgnoreMethod {
+		if req.Method == v {
+			http.Error(res, ErrReutnString(fmt.Sprintf("Not allowed %s", v)), http.StatusUnauthorized)
 			return
 		}
+	}
 
-		// 检查 req Method 是否存在于忽略列表
-		for _, v := range a.IgnoreMethod {
-			if req.Method == v {
-				http.Error(res, ErrReutnString(fmt.Sprintf("Not allowed %s", v)), http.StatusUnauthorized)
-				return
-			}
-		}
+	// 检查 req Method 是否指定模式
+	var isRun bool
 
-		// 检查 req Method 是否指定模式
-		var isRun bool
+	for _, v := range a.SpecifyMethod {
+		if req.Method == v {
 
-		for _, v := range a.SpecifyMethod {
-			if req.Method == v {
-
-				isRun = true
-			}
-		}
-
-		if len(a.SpecifyMethod) == 0 {
 			isRun = true
 		}
-
-		if !isRun {
-			return
-		}
-
-		// 初始化数据
-
-		reqBody, _ := ioutil.ReadAll(req.Body)
-		resBody := wrappedWriter.buffer.Bytes()
-		res.Write(resBody)
-
-		authLog := AuditLog{
-			TIME:          "now()",
-			Account:       pay.Account,
-			RequestURI:    req.RequestURI,
-			Host:          req.Host,
-			Code:          wrappedWriter.code,
-			RemoteAddr:    req.RemoteAddr,
-			XForwardedFor: req.Header.Get("X-Forwarded-For"),
-			RequestMethod: req.Method,
-			RequestBody:   string(reqBody),
-			ResponseBody:  string(resBody),
-		}
-
-		data, _ := json.Marshal(authLog)
-
-		// os.Stdout.WriteString("res body: " + string(data))
-
-		// 记录日志
-		a.PgResetClient(data)
-
-	} else {
-		http.Error(res, ErrReutnString("Not allowed"), http.StatusUnauthorized)
 	}
+
+	if len(a.SpecifyMethod) == 0 {
+		isRun = true
+	}
+
+	if !isRun {
+		return
+	}
+
+	// 初始化数据
+
+	reqBody, _ := ioutil.ReadAll(req.Body)
+	resBody := wrappedWriter.buffer.Bytes()
+	res.Write(resBody)
+
+	authLog := AuditLog{
+		TIME:          "now()",
+		Account:       account,
+		RequestURI:    req.RequestURI,
+		Host:          req.Host,
+		Code:          wrappedWriter.code,
+		RemoteAddr:    req.RemoteAddr,
+		XForwardedFor: req.Header.Get("X-Forwarded-For"),
+		RequestMethod: req.Method,
+		RequestBody:   string(reqBody),
+		ResponseBody:  string(resBody),
+	}
+
+	data, _ := json.Marshal(authLog)
+
+	// os.Stdout.WriteString("res body: " + string(data))
+
+	// 记录日志
+	a.PgResetClient(data)
 
 }
 

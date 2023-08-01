@@ -5,12 +5,13 @@ summary: 'request & Response Body save to db'
 
 testData:
   # jwt 校验
+  JwtCheck: true
   JwtSecret: "h4BZAwLabAzMBi49LGHU5wqLJp/P4tl+t10VqKMk1Cg="
   JwtAuthHeader: Authorization
 	JwtHeaderPrefix: Bearer
 
   # 插件记录 日志开关
-  NotSaveDB: true
+  NotSaveDB: false
   PgResetUrl: http://192.168.188.99:5433/audit_log
   PgResetJwtSecret: a32a7be2f3081d57f7f1377d23967250bf635e9a94203e247bfda31221590fe0
   PgResetJwtHeader: '{"alg":"HS256","typ":"JWT"}'

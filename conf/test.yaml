@@ -19,8 +19,11 @@ http:
       plugin:
         auditlog:
           # 用于校验 jwt 认证
-          jwtSecret: h4BZAwLabAzMBi49LGHU5wqLJp/P4tl+t10VqKMk1Cg=
-
+          JwtCheck: true
+          JwtSecret: "h4BZAwLabAzMBi49LGHU5wqLJp/P4tl+t10VqKMk1Cg="
+          JwtAuthHeader: Authorization
+          JwtHeaderPrefix: Bearer
+          
           # 审计日志
           ## 开关
           NotSaveDB: false
